@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090b10">
+  <title>ATC RP — iOS Install</title>
+  <style>
+    :root{--bg:#07090d;--card:#11141b;--line:#252b36;--text:#f6f7fb;--muted:#9ca4b2;--red:#ff3232;--blue:#2e7dff}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top,#19131a 0,#090b10 45%,#06070a 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    .wrap{max-width:760px;margin:auto;padding:34px 18px 56px}
+    .brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}.logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(145deg,#171a22,#050609);display:grid;place-items:center;border:1px solid #282d38;box-shadow:0 12px 35px #0008}.logo span{font-weight:1000;font-style:italic;font-size:20px;line-height:.8;text-align:center}.logo b{color:var(--blue)}
+    h1{font-size:34px;margin:0 0 4px;font-weight:900}.sub{margin:0;color:var(--muted)}
+    .hero,.card{background:#10131a;border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 18px 55px #0005}.hero{margin-bottom:16px}.pill{display:inline-flex;border:1px solid #3d2630;background:#211219;color:#ff7777;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800;margin-bottom:14px}
+    h2{font-size:24px;margin:0 0 10px} p{line-height:1.55;color:#c8ced8}.btn{display:block;text-align:center;text-decoration:none;color:white;font-weight:900;padding:16px;border-radius:14px;margin-top:12px;background:linear-gradient(135deg,#ff3636,#b81227);box-shadow:0 10px 28px #b8122740}.btn.secondary{background:#171c25;border:1px solid #303746;box-shadow:none}.btn.blue{background:linear-gradient(135deg,#367dff,#2852ff)}
+    .grid{display:grid;gap:14px;margin-top:16px}.step{display:flex;gap:14px;align-items:flex-start}.n{flex:0 0 34px;height:34px;border-radius:10px;background:#1c2230;border:1px solid #31394a;display:grid;place-items:center;font-weight:900}.step b{display:block;margin:2px 0 4px}.step span{color:var(--muted);font-size:14px;line-height:1.45}
+    .warning{margin-top:16px;padding:14px;border-radius:14px;background:#1a1510;border:1px solid #423120;color:#f3d4a1;font-size:14px;line-height:1.5}.ok{background:#0f1b15;border-color:#214a35;color:#aee7c7}
+    footer{text-align:center;color:#727b89;font-size:12px;margin-top:26px}
+    code{background:#090c12;border:1px solid #262c38;border-radius:7px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand">
+      <div class="logo"><span>ATC<br><b>RP</b></span></div>
+      <div><h1>ATC RP iOS</h1><p class="sub">Version 0.7.0 • iOS 15.1+</p></div>
+    </div>
+
+    <section class="hero">
+      <div class="pill">iOS INSTALL</div>
+      <h2>Download ATC RP</h2>
+      <p>Download the official ATC RP IPA from the project release. The IPA must be signed on the iPhone before iOS will allow it to open.</p>
+      <a class="btn" href="https://github.com/Demitrovic2/ATC-RP-iOS-Build/releases/download/v0.7.0-ios-7/ATC-RP-iOS-v0.7.0-unsigned.ipa">Download ATC RP IPA</a>
+    </section>
+
+    <section class="card">
+      <h2>Install with SideStore</h2>
+      <div class="grid">
+        <div class="step"><div class="n">1</div><div><b>Initial SideStore setup</b><span>Use a computer one time to install SideStore and pair the iPhone.</span></div></div>
+        <div class="step"><div class="n">2</div><div><b>Trust the developer app</b><span>On iPhone: Settings → General → VPN & Device Management → trust the Apple Account used for SideStore. Enable Developer Mode when requested.</span></div></div>
+        <div class="step"><div class="n">3</div><div><b>Download ATC RP</b><span>Tap the red Download button above and save the IPA to Files.</span></div></div>
+        <div class="step"><div class="n">4</div><div><b>Open it in SideStore</b><span>In SideStore, add/install the ATC RP IPA and let SideStore sign it with your Apple Account.</span></div></div>
+        <div class="step"><div class="n">5</div><div><b>Refresh before expiry</b><span>With a free Apple Account, SideStore shows a 7-day expiry counter. Refresh the app before it expires.</span></div></div>
+      </div>
+      <a class="btn blue" href="https://docs.sidestore.io/docs/installation/install">Official SideStore Install Guide</a>
+      <a class="btn secondary" href="https://docs.sidestore.io/docs/advanced/pairing-file">Pairing File Help</a>
+
+      <div class="warning"><b>iOS 26.4+:</b> if SideStore reports pairing/minimuxer issues, its official troubleshooting guide recommends updating to a SideStore nightly build.</div>
+      <div class="warning ok"><b>Important:</b> do not share your Apple Account password with ATC RP staff or anyone else. Signing should happen on the member's own device/SideStore setup.</div>
+    </section>
+
+    <footer>ATC RP • iOS community installation page</footer>
+  </main>
+</body>
+</html>
