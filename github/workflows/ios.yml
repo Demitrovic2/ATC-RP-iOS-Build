@@ -1,0 +1,107 @@
+name: Build ATC RP iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract build pack
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p pack buildsrc
+
+          unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
+
+          SOURCE_ZIP="$(find pack -name 'ATC-RP-iOS-v0.7.0-build-source.zip' | head -n 1)"
+          test -n "$SOURCE_ZIP"
+
+          unzip -q "$SOURCE_ZIP" -d buildsrc
+
+          test -f buildsrc/atc-rp/package.json
+          test -f buildsrc/atc-rp/ios/ATCRP.xcodeproj/project.pbxproj
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Install npm packages
+        working-directory: buildsrc/atc-rp
+        run: npm ci --no-audit --no-fund
+
+      - name: Install CocoaPods
+        shell: bash
+        run: |
+          sudo gem install cocoapods --no-document
+          cd buildsrc/atc-rp/ios
+          pod install --repo-update
+
+      - name: Build iOS app
+        working-directory: buildsrc/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          xcodebuild \
+            -workspace ios/ATCRP.xcworkspace \
+            -scheme ATCRP \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Add React Native bundle
+        working-directory: buildsrc/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" \
+            -maxdepth 1 -type d -name '*.app' | head -n 1)"
+
+          test -n "$APP_PATH"
+
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output "$APP_PATH/main.jsbundle" \
+            --assets-dest "$APP_PATH"
+
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Create IPA
+        working-directory: buildsrc/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          rm -rf build/Payload
+          mkdir -p build/Payload
+
+          cp -R "$APP_PATH" build/Payload/ATCRP.app
+
+          cd build
+          zip -qry ATC-RP-iOS-v0.7.0-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATC-RP-iOS-v0.7.0-unsigned
+          path: buildsrc/atc-rp/build/ATC-RP-iOS-v0.7.0-unsigned.ipa
+          if-no-files-found: error
