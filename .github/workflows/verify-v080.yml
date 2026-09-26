@@ -1,0 +1,88 @@
+name: Verify ATC RP iOS v0.8.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-build:
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - name: Extract v0.7 base and apply v0.8 patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf pack src && mkdir -p pack src
+          unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
+          unzip -q pack/ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK/ci/ATC-RP-iOS-v0.7.0-build-source.zip -d src
+          echo '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' | base64 --decode | gunzip > /tmp/v080.patch
+          (cd src/atc-rp && patch -p1 < /tmp/v080.patch)
+      - name: Generate CI visual assets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd src/atc-rp
+          mkdir -p assets/images ios/ATCRP/Assets.xcassets/AppIcon.appiconset
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 --decode > /tmp/base.png
+          sips -z 512 512 /tmp/base.png --out assets/images/atc-logo.png >/dev/null
+          python3 - <<'PY2'
+          from pathlib import Path
+          import json,subprocess
+          out=Path('ios/ATCRP/Assets.xcassets/AppIcon.appiconset')
+          spec=[('iphone','20x20','2x',40),('iphone','20x20','3x',60),('iphone','29x29','2x',58),('iphone','29x29','3x',87),('iphone','40x40','2x',80),('iphone','40x40','3x',120),('iphone','60x60','2x',120),('iphone','60x60','3x',180),('ipad','20x20','1x',20),('ipad','20x20','2x',40),('ipad','29x29','1x',29),('ipad','29x29','2x',58),('ipad','40x40','1x',40),('ipad','40x40','2x',80),('ipad','76x76','1x',76),('ipad','76x76','2x',152),('ipad','83.5x83.5','2x',167),('ios-marketing','1024x1024','1x',1024)]
+          images=[]
+          for idiom,size,scale,px in spec:
+              name=f'icon-{idiom}-{size.replace(".","_")}@{scale}.png'
+              subprocess.run(['sips','-z',str(px),str(px),'/tmp/base.png','--out',str(out/name)],check=True,stdout=subprocess.DEVNULL)
+              images.append({'idiom':idiom,'size':size,'scale':scale,'filename':name})
+          (out/'Contents.json').write_text(json.dumps({'images':images,'info':{'author':'xcode','version':1}},indent=2))
+          (out.parent/'Contents.json').write_text(json.dumps({'info':{'author':'xcode','version':1}},indent=2))
+          PY2
+      - name: Fix launch screen
+        shell: bash
+        run: |
+          cat > src/atc-rp/ios/ATCRP/LaunchScreen.storyboard <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM"><scenes><scene sceneID="EHf-IW-A2E"><objects><viewController id="01J-lp-oVM" sceneMemberID="viewController"><view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3"><rect key="frame" x="0" y="0" width="393" height="852"/><viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/></view></viewController><placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" sceneMemberID="firstResponder"/></objects></scene></scenes></document>
+          EOF
+      - name: Source verification
+        working-directory: src/atc-rp
+        run: npm run verify:source
+      - name: Install JS dependencies
+        working-directory: src/atc-rp
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript verification
+        working-directory: src/atc-rp
+        run: npm run typecheck
+      - name: CocoaPods
+        working-directory: src/atc-rp/ios
+        run: pod install --repo-update
+      - name: Xcode Release build
+        working-directory: src/atc-rp
+        run: xcodebuild -workspace ios/ATCRP.xcworkspace -scheme ATCRP -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$PWD/build/DerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Bundle and package IPA
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          test -n "$APP_PATH"
+          npx react-native bundle --platform ios --dev false --entry-file index.js --bundle-output "$APP_PATH/main.jsbundle" --assets-dest "$APP_PATH"
+          rm -rf build/Payload && mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/ATCRP.app
+          (cd build && zip -qry ATC-RP-iOS-v0.8.0-unsigned.ipa Payload)
+          test -s build/ATC-RP-iOS-v0.8.0-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ATC-RP-iOS-v0.8.0-unsigned
+          path: src/atc-rp/build/ATC-RP-iOS-v0.8.0-unsigned.ipa
+          if-no-files-found: error
