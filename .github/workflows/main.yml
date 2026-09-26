@@ -78,6 +78,30 @@ jobs:
           </document>
           EOF
 
+      - name: Fix missing ATC logo asset
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/atc-rp/src/screens/HomeScreen.tsx")
+          s = p.read_text()
+          s = s.replace(
+              "import {Image,ScrollView,StyleSheet,Text,View} from 'react-native';",
+              "import {ScrollView,StyleSheet,Text} from 'react-native';"
+          )
+          s = s.replace(
+              "<Image source={require('../../assets/images/atc-logo.png')} style={{width:'100%',height:145}} resizeMode=\"contain\"/>",
+              "<Text style={s.logo}>ATC RP</Text>"
+          )
+          s = s.replace(
+              "logo:{fontSize:34,color:'#fff',fontWeight:'900',letterSpacing:1}",
+              "logo:{fontSize:34,color:'#fff',fontWeight:'900',letterSpacing:1,textAlign:'center',paddingVertical:28}"
+          )
+          p.write_text(s)
+          if "atc-logo.png" in p.read_text():
+              raise SystemExit("ATC logo asset reference was not removed")
+          PY
+
       - name: Install JavaScript packages
         working-directory: src/atc-rp
         run: npm ci --no-audit --no-fund
