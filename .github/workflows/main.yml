@@ -2,6 +2,9 @@ name: Build ATC RP iOS IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -9,16 +12,21 @@ jobs:
     timeout-minutes: 75
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
 
-      - name: Build IPA
+      - name: Extract ATC RP source
         shell: bash
         run: |
           set -euxo pipefail
+
+          rm -rf pack src
+          mkdir -p pack src
 
           unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
 
@@ -26,13 +34,22 @@ jobs:
             pack/ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK/ci/ATC-RP-iOS-v0.7.0-build-source.zip \
             -d src
 
-          cd src/atc-rp
+          test -f src/atc-rp/package.json
+          test -f src/atc-rp/ios/ATCRP.xcodeproj/project.pbxproj
 
-          npm ci --no-audit --no-fund
+      - name: Install JavaScript packages
+        working-directory: src/atc-rp
+        run: npm ci --no-audit --no-fund
 
-          cd ios
-          pod install --repo-update
-          cd ..
+      - name: Install CocoaPods
+        working-directory: src/atc-rp/ios
+        run: pod install --repo-update
+
+      - name: Build iPhone app
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
 
           xcodebuild \
             -workspace ios/ATCRP.xcworkspace \
@@ -46,8 +63,13 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build
 
-          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" \
-            -maxdepth 1 -type d -name '*.app' | head -n 1)"
+      - name: Bundle React Native
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -type d -name '*.app' | head -n 1)"
 
           test -n "$APP_PATH"
 
@@ -58,14 +80,28 @@ jobs:
             --bundle-output "$APP_PATH/main.jsbundle" \
             --assets-dest "$APP_PATH"
 
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Create IPA
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          rm -rf build/Payload
           mkdir -p build/Payload
+
           cp -R "$APP_PATH" build/Payload/ATCRP.app
 
           cd build
           zip -qry ATC-RP-iOS-v0.7.0-unsigned.ipa Payload
+
+          test -s ATC-RP-iOS-v0.7.0-unsigned.ipa
+          ls -lh ATC-RP-iOS-v0.7.0-unsigned.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ATC-RP-iOS-v0.7.0-unsigned
           path: src/atc-rp/build/ATC-RP-iOS-v0.7.0-unsigned.ipa
+          if-no-files-found: error
