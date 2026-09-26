@@ -1,0 +1,275 @@
+name: Build Signed ATC RP iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-signed:
+    runs-on: macos-15
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check signing secrets
+        shell: bash
+        env:
+          CERT_B64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          PROFILE_B64: ${{ secrets.IOS_MOBILEPROVISION_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$CERT_B64" || { echo "Missing IOS_CERT_P12_BASE64"; exit 1; }
+          test -n "$PROFILE_B64" || { echo "Missing IOS_MOBILEPROVISION_BASE64"; exit 1; }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Extract ATC RP source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf pack src
+          mkdir -p pack src
+          unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
+          unzip -q \
+            pack/ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK/ci/ATC-RP-iOS-v0.7.0-build-source.zip \
+            -d src
+          test -f src/atc-rp/package.json
+          test -f src/atc-rp/ios/ATCRP.xcodeproj/project.pbxproj
+
+      - name: Fix LaunchScreen
+        shell: bash
+        run: |
+          cat > src/atc-rp/ios/ATCRP/LaunchScreen.storyboard <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB"
+            version="3.0"
+            toolsVersion="21507"
+            targetRuntime="iOS.CocoaTouch"
+            propertyAccessControl="none"
+            useAutolayout="YES"
+            launchScreen="YES"
+            useTraitCollections="YES"
+            useSafeAreas="YES"
+            colorMatched="YES"
+            initialViewController="01J-lp-oVM">
+            <device id="retina6_12" orientation="portrait" appearance="light"/>
+            <dependencies>
+              <deployment identifier="iOS"/>
+              <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21505"/>
+              <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+              <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+            </dependencies>
+            <scenes>
+              <scene sceneID="EHf-IW-A2E">
+                <objects>
+                  <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                      <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                      <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                      <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                    </view>
+                  </viewController>
+                  <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                </objects>
+                <point key="canvasLocation" x="53" y="375"/>
+              </scene>
+            </scenes>
+          </document>
+          EOF
+
+      - name: Fix missing ATC logo asset
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/atc-rp/src/screens/HomeScreen.tsx")
+          s = p.read_text()
+          s = s.replace(
+              "import {Image,ScrollView,StyleSheet,Text,View} from 'react-native';",
+              "import {ScrollView,StyleSheet,Text} from 'react-native';"
+          )
+          s = s.replace(
+              "<Image source={require('../../assets/images/atc-logo.png')} style={{width:'100%',height:145}} resizeMode=\"contain\"/>",
+              "<Text style={s.logo}>ATC RP</Text>"
+          )
+          s = s.replace(
+              "logo:{fontSize:34,color:'#fff',fontWeight:'900',letterSpacing:1}",
+              "logo:{fontSize:34,color:'#fff',fontWeight:'900',letterSpacing:1,textAlign:'center',paddingVertical:28}"
+          )
+          p.write_text(s)
+          if "atc-logo.png" in p.read_text():
+              raise SystemExit("ATC logo asset reference was not removed")
+          PY
+
+      - name: Install JavaScript packages
+        working-directory: src/atc-rp
+        run: npm ci --no-audit --no-fund
+
+      - name: Install CocoaPods
+        working-directory: src/atc-rp/ios
+        run: pod install --repo-update
+
+      - name: Build iPhone app unsigned
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          xcodebuild \
+            -workspace ios/ATCRP.xcworkspace \
+            -scheme ATCRP \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Bundle React Native
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          test -n "$APP_PATH"
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output "$APP_PATH/main.jsbundle" \
+            --assets-dest "$APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Import signing certificate and profile
+        shell: bash
+        env:
+          CERT_B64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          PROFILE_B64: ${{ secrets.IOS_MOBILEPROVISION_BASE64 }}
+        run: |
+          set -euxo pipefail
+
+          CERT_PATH="$RUNNER_TEMP/ios_signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/ATCRP.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          ENTITLEMENTS="$RUNNER_TEMP/entitlements.plist"
+          KEYCHAIN_PATH="$RUNNER_TEMP/atcrp-signing.keychain-db"
+          KEYCHAIN_PASSWORD="ATCRP-CI-${GITHUB_RUN_ID}"
+
+          printf '%s' "$CERT_B64" | base64 --decode > "$CERT_PATH"
+          printf '%s' "$PROFILE_B64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Apple (Development|Distribution)|iPhone (Developer|Distribution)/ {print $2; exit}')"
+          test -n "$IDENTITY"
+          echo "SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+
+          python3 - "$PROFILE_PLIST" "$ENTITLEMENTS" <<'PY'
+          import plistlib, sys
+          src, dst = sys.argv[1], sys.argv[2]
+          with open(src, "rb") as f:
+              p = plistlib.load(f)
+          ent = p.get("Entitlements")
+          if not ent:
+              raise SystemExit("Provisioning profile has no Entitlements")
+          with open(dst, "wb") as f:
+              plistlib.dump(ent, f)
+          app_id = ent.get("application-identifier", "")
+          print("Provisioning application-identifier:", app_id)
+          PY
+
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          cp "$PROFILE_PATH" "$APP_PATH/embedded.mobileprovision"
+
+          echo "ENTITLEMENTS_PATH=$ENTITLEMENTS" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Validate profile for ATC RP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - "$RUNNER_TEMP/profile.plist" <<'PY'
+          import plistlib, sys
+          with open(sys.argv[1], "rb") as f:
+              p = plistlib.load(f)
+          ent = p["Entitlements"]
+          profile_app_id = ent.get("application-identifier", "")
+          bundle_id = "com.atcrp"
+          suffix = profile_app_id.split(".", 1)[1] if "." in profile_app_id else ""
+          ok = suffix == bundle_id or (suffix.endswith("*") and bundle_id.startswith(suffix[:-1]))
+          if not ok:
+              raise SystemExit(f"Provisioning profile {profile_app_id!r} does not match bundle id {bundle_id!r}")
+          devices = p.get("ProvisionedDevices", [])
+          print("Profile:", p.get("Name"))
+          print("Registered devices in profile:", len(devices))
+          print("Bundle ID match: OK")
+          PY
+
+      - name: Sign ATC RP app
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          while IFS= read -r -d '' item; do
+            codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$item"
+          done < <(find "$APP_PATH" -type d -name '*.framework' -print0)
+
+          while IFS= read -r -d '' item; do
+            codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$item"
+          done < <(find "$APP_PATH" -type f -name '*.dylib' -print0)
+
+          while IFS= read -r -d '' item; do
+            codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$item"
+          done < <(find "$APP_PATH" -type d -name '*.appex' -print0)
+
+          codesign \
+            --force \
+            --sign "$SIGNING_IDENTITY" \
+            --entitlements "$ENTITLEMENTS_PATH" \
+            --timestamp=none \
+            "$APP_PATH"
+
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+      - name: Create signed IPA
+        working-directory: src/atc-rp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/ATCRP.app
+          cd build
+          zip -qry ATC-RP-iOS-v0.7.0-signed.ipa Payload
+          test -s ATC-RP-iOS-v0.7.0-signed.ipa
+          ls -lh ATC-RP-iOS-v0.7.0-signed.ipa
+
+      - name: Upload signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATC-RP-iOS-v0.7.0-signed
+          path: src/atc-rp/build/ATC-RP-iOS-v0.7.0-signed.ipa
+          if-no-files-found: error
+
+      - name: Cleanup signing keychain
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
