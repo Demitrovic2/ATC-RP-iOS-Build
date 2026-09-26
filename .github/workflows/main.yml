@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -170,3 +173,19 @@ jobs:
           name: ATC-RP-iOS-v0.7.0-unsigned
           path: src/atc-rp/build/ATC-RP-iOS-v0.7.0-unsigned.ipa
           if-no-files-found: error
+
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: src/atc-rp/build
+        run: |
+          set -euxo pipefail
+          TAG="v0.7.0-ios-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" \
+            ATC-RP-iOS-v0.7.0-unsigned.ipa \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ATC RP iOS v0.7.0" \
+            --notes "ATC RP iOS v0.7.0 unsigned IPA. iPhone users must sign the IPA with their own Apple account/certificate before installation."
