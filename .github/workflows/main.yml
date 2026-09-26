@@ -2,9 +2,6 @@ name: Build ATC RP iOS IPA
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
@@ -12,16 +9,63 @@ jobs:
     timeout-minutes: 75
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Extract ATC RP
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Build IPA
+        shell: bash
         run: |
-          set -eux
-          mkdir -p pack buildsrc
+          set -euxo pipefail
+
           unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
 
-          SOURCE_ZIP="$(find pack -name 'ATC-RP-iOS-v0.7.0-build-source.zip' | head -n 1)"
-          test -n "$SOURCE_ZIP"
+          unzip -q \
+            pack/ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK/ci/ATC-RP-iOS-v0.7.0-build-source.zip \
+            -d src
 
-          unzip -q "$
+          cd src/atc-rp
+
+          npm ci --no-audit --no-fund
+
+          cd ios
+          pod install --repo-update
+          cd ..
+
+          xcodebuild \
+            -workspace ios/ATCRP.xcworkspace \
+            -scheme ATCRP \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+          APP_PATH="$(find "$PWD/build/DerivedData/Build/Products/Release-iphoneos" \
+            -maxdepth 1 -type d -name '*.app' | head -n 1)"
+
+          test -n "$APP_PATH"
+
+          npx react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output "$APP_PATH/main.jsbundle" \
+            --assets-dest "$APP_PATH"
+
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/ATCRP.app
+
+          cd build
+          zip -qry ATC-RP-iOS-v0.7.0-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATC-RP-iOS-v0.7.0-unsigned
+          path: src/atc-rp/build/ATC-RP-iOS-v0.7.0-unsigned.ipa
