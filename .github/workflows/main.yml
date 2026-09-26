@@ -1,0 +1,27 @@
+name: Build ATC RP iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract ATC RP
+        run: |
+          set -eux
+          mkdir -p pack buildsrc
+          unzip -q ATC-RP-iOS-v0.7.0-GITHUB-BUILD-PACK.zip -d pack
+
+          SOURCE_ZIP="$(find pack -name 'ATC-RP-iOS-v0.7.0-build-source.zip' | head -n 1)"
+          test -n "$SOURCE_ZIP"
+
+          unzip -q "$
